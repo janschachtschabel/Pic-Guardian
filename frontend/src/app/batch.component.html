@@ -1,0 +1,228 @@
+<div class="batch">
+  <mat-button-toggle-group [value]="mode()" (change)="mode.set($event.value)" class="mode-toggle">
+    <mat-button-toggle value="collection"><mat-icon>account_tree</mat-icon> Sammlung (rekursiv)</mat-button-toggle>
+    <mat-button-toggle value="csv"><mat-icon>table_view</mat-icon> CSV-Liste</mat-button-toggle>
+  </mat-button-toggle-group>
+
+  <!-- Sammlung -->
+  @if (mode() === 'collection') {
+    <div class="form">
+      <div class="row">
+        <mat-form-field appearance="outline" class="repo">
+          <mat-label>Repository</mat-label>
+          <mat-select [(ngModel)]="repo">
+            @for (r of repos(); track r.id) { <mat-option [value]="r.id">{{ r.label }}</mat-option> }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="grow">
+          <mat-label>Sammlungs-Node-ID (Wurzel)</mat-label>
+          <mat-icon matPrefix>tag</mat-icon>
+          <input matInput [(ngModel)]="collectionNodeId" placeholder="UUID der Sammlung">
+        </mat-form-field>
+      </div>
+      <div class="row">
+        <mat-form-field appearance="outline" class="grow">
+          <mat-label>Max. Nodes</mat-label>
+          <input matInput type="number" [(ngModel)]="maxNodes" min="1" max="5000">
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="grow">
+          <mat-label>Max. Tiefe</mat-label>
+          <input matInput type="number" [(ngModel)]="maxDepth" min="1" max="20">
+        </mat-form-field>
+      </div>
+      <p class="hint"><mat-icon>info</mat-icon> Es werden alle Untersammlungen und referenzierten Inhalte (dedupliziert über das Original) rekursiv geprüft.</p>
+    </div>
+  }
+
+  <!-- CSV -->
+  @if (mode() === 'csv') {
+    <div class="form">
+      <div class="upload-zone">
+        <input #csvInput type="file" accept=".csv,text/csv,text/plain" hidden (change)="onCsvSelected($event)">
+        <button mat-stroked-button (click)="csvInput.click()"><mat-icon>upload_file</mat-icon> CSV wählen…</button>
+        <span class="filename">{{ csvFile?.name || 'oder unten einfügen' }}</span>
+      </div>
+      <mat-form-field appearance="outline" class="full">
+        <mat-label>CSV-Text (node_id;repository — eine Zeile pro Node)</mat-label>
+        <textarea matInput [(ngModel)]="csvText" rows="4"
+                  placeholder="abcd1234-…;prod&#10;efgh5678-…;staging"></textarea>
+      </mat-form-field>
+      <div class="row">
+        <mat-form-field appearance="outline" class="repo">
+          <mat-label>Default-Repository</mat-label>
+          <mat-select [(ngModel)]="defaultRepo">
+            @for (r of repos(); track r.id) { <mat-option [value]="r.id">{{ r.label }}</mat-option> }
+          </mat-select>
+        </mat-form-field>
+        <p class="hint template"><mat-icon>help_outline</mat-icon>
+          Format: <code>node_id;repository</code> (Semikolon; repository optional).
+          <a [href]="templateUrl()" target="_blank" rel="noopener">Muster-CSV ↗</a>
+        </p>
+      </div>
+    </div>
+  }
+
+  <mat-expansion-panel class="auth-panel" hideToggle>
+    <mat-expansion-panel-header>
+      <mat-panel-title><mat-icon>lock</mat-icon>&nbsp;Basic-Auth (für geschützte Nodes)</mat-panel-title>
+    </mat-expansion-panel-header>
+    <div class="row">
+      <mat-form-field appearance="outline" class="grow">
+        <mat-label>Benutzer</mat-label><input matInput [(ngModel)]="esUser" autocomplete="off">
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="grow">
+        <mat-label>Passwort</mat-label><input matInput type="password" [(ngModel)]="esPassword" autocomplete="off">
+      </mat-form-field>
+    </div>
+  </mat-expansion-panel>
+
+  <div class="options">
+    <mat-slide-toggle [(ngModel)]="allowExternal">Externe Dienste nutzen (Wikimedia Commons / Openverse)</mat-slide-toggle>
+    <p class="hint"><mat-icon>info</mat-icon>
+      Im Batch standardmäßig <strong>aus</strong>: Bei kuratierten Repo-Inhalten
+      bringen die freien externen Dienste kaum Mehrwert, kosten aber viel Laufzeit
+      und zählen aufs Openverse-Tageslimit (10.000). Für Einzelprüfungen sind sie
+      standardmäßig an.
+    </p>
+  </div>
+
+  <!-- Hilfe: Dateiformat + Ergebnisdeutung -->
+  <mat-expansion-panel class="help-panel" hideToggle>
+    <mat-expansion-panel-header>
+      <mat-panel-title><mat-icon>help_outline</mat-icon>&nbsp;Hilfe: Wie muss die CSV aussehen &amp; wie deute ich die Ergebnisse?</mat-panel-title>
+    </mat-expansion-panel-header>
+
+    <h4>CSV-Format für die Batch-Prüfung</h4>
+    <ul class="help-list">
+      <li>Eine Zeile pro Inhalt, <strong>Semikolon</strong>-getrennt (Komma wird als Fallback erkannt).</li>
+      <li>Spalte 1 = <strong>Node-ID</strong> (UUID, Pflicht). Spalte 2 = <strong>Repository</strong> (<code>prod</code> oder <code>staging</code>, optional — sonst Default).</li>
+      <li>Eine Kopfzeile <code>node_id;repository</code> ist erlaubt, aber nicht nötig; mit <code>#</code> beginnende Zeilen werden ignoriert.</li>
+    </ul>
+    <pre class="help-csv">node_id;repository
+9a1b2c3d-1111-2222-3333-444455556666;prod
+7f8e9d0c-aaaa-bbbb-cccc-ddddeeeeffff;staging</pre>
+    <p class="hint"><mat-icon>download</mat-icon>
+      <a [href]="templateUrl()" target="_blank" rel="noopener">Muster-CSV herunterladen ↗</a>
+      · Alternativ oben die Sammlung wählen — dann werden Node-IDs automatisch aus der Sammlung gezogen.
+    </p>
+
+    <h4>Ergebnis-Skala — was bedeutet welche Kategorie?</h4>
+    <dl class="help-scale">
+      <dt class="c-green"><mat-icon>verified_user</mat-icon> Unproblematisch</dt>
+      <dd>Positivnachweis einer freien/unkritischen Lizenz — Freigabe möglich (Attribution beachten).</dd>
+      <dt class="c-yellow"><mat-icon>help_center</mat-icon> Nicht messbar</dt>
+      <dd>Kein belastbares Signal (leere Metadaten, keine Deklaration). <strong>Default-Deny</strong>: keine automatische Freigabe, aber auch kein konkreter Verdacht.</dd>
+      <dt class="c-orange"><mat-icon>gpp_maybe</mat-icon> Zu prüfen</dt>
+      <dd>Ein Warnhinweis liegt vor, ist aber nicht eindeutig (z. B. Agentur-Hinweis ohne Bildzuordnung, widersprüchliche Belege) — redaktionell klären.</dd>
+      <dt class="c-red"><mat-icon>gpp_bad</mat-icon> Problematisch</dt>
+      <dd>Starkes Warnsignal ohne Gegenbeleg (z. B. Agentur-Nachweis auf der Fundseite) — nicht ausliefern.</dd>
+    </dl>
+    <p class="hint"><mat-icon>lightbulb</mat-icon>
+      Nach dem Lauf: Über <strong>Review-Queue öffnen</strong> die problematischen und
+      „zu prüfen"-Fälle bestätigen — bestätigte Bilder landen im Risikospeicher und
+      werden künftig überall wiedererkannt. Exporte (CSV/JSON/Bericht) enthalten die
+      Kategorie in einer eigenen Spalte.
+    </p>
+  </mat-expansion-panel>
+
+  <div class="actions">
+    <button mat-flat-button class="start-btn" (click)="start()" [disabled]="starting() || isRunning()">
+      @if (starting() || isRunning()) {
+        <mat-progress-spinner mode="indeterminate" diameter="20"></mat-progress-spinner> Läuft…
+      } @else { <ng-container><mat-icon>play_arrow</mat-icon> Batch starten</ng-container> }
+    </button>
+  </div>
+
+  @if (error(); as err) {
+    <div class="error-banner" role="alert"><mat-icon aria-hidden="true">error</mat-icon><span>{{ err }}</span></div>
+  }
+
+  <!-- Job-Status -->
+  @if (job(); as j) {
+    <mat-divider></mat-divider>
+    <div class="job">
+      <div class="job-head">
+        <span class="job-src">{{ j.source }}</span>
+        <span class="job-status s-{{ j.status }}">{{ j.status }}</span>
+      </div>
+
+      <div class="progress">
+        <mat-progress-bar [mode]="isRunning() && !j.total ? 'indeterminate' : 'determinate'"
+                          [value]="progressValue()"></mat-progress-bar>
+        <span class="progress-text">{{ j.done }}@if (j.total) {<span> / {{ j.total }}</span>} geprüft</span>
+      </div>
+
+      <!-- 4-stufige Ergebnis-Skala -->
+      <div class="counts">
+        @for (s of scale; track s.key) {
+          <span class="count-chip c-{{ s.cls }}" [attr.aria-label]="s.label + ': ' + katCount(s.key)">
+            <mat-icon aria-hidden="true">{{ s.icon }}</mat-icon> {{ katCount(s.key) }}
+            <span class="chip-label">{{ s.label }}</span>
+          </span>
+        }
+      </div>
+
+      @if (j.truncated) {
+        <p class="warn"><mat-icon>warning</mat-icon> Node-Limit erreicht — Sammlung nur teilweise geprüft.</p>
+      }
+      @for (w of j.warnings; track w) { <p class="warn"><mat-icon>info</mat-icon> {{ w }}</p> }
+      @if (j.error) { <p class="warn"><mat-icon>error</mat-icon> {{ j.error }}</p> }
+
+      @if (j.status === 'done') {
+        <div class="exports">
+          <span class="exports-label">Export für Nachbearbeitung:</span>
+          <a mat-stroked-button [href]="exportUrl('export.csv')" download><mat-icon>table_view</mat-icon> CSV</a>
+          <a mat-stroked-button [href]="exportUrl('export.json')" target="_blank" rel="noopener"><mat-icon>data_object</mat-icon> JSON</a>
+          <a mat-stroked-button [href]="exportUrl('report')" target="_blank" rel="noopener"><mat-icon>description</mat-icon> Bericht</a>
+          @if (!reviewItems() && (j.counts.red > 0 || j.counts.yellow > 0)) {
+            <button mat-stroked-button (click)="loadReview()" [disabled]="reviewLoading()">
+              <mat-icon>fact_check</mat-icon>
+              @if (reviewLoading()) { Lade… } @else { Review-Queue öffnen }
+            </button>
+          }
+        </div>
+
+        <!-- Review-Queue: bestätigte Fälle wandern in den Risikospeicher und
+             werden künftig überall per pHash wiedererkannt. -->
+        @if (reviewItems(); as items) {
+          <div class="review">
+            <h3><mat-icon>fact_check</mat-icon> Review-Queue ({{ items.length }} Fälle)</h3>
+            <p class="hint">„Bestätigen" übernimmt SHA-1 + pHash des Bilds in den Risikospeicher —
+              Wiederverwendungen desselben Bilds werden dann auch ohne Bildnachweis erkannt.</p>
+            @for (it of items; track it.node_id) {
+              <div class="review-item v-{{ it.verdict }}">
+                <div class="review-main">
+                  <span class="review-badge">{{ it.verdict === 'red' ? '🔴' : '🟠' }}</span>
+                  <div class="review-text">
+                    <div class="review-head">
+                      <a [href]="it.render_url" target="_blank" rel="noopener"><code>{{ it.node_id.slice(0, 8) }}</code></a>
+                      <span>{{ it.headline }}</span>
+                    </div>
+                    <div class="review-detail">
+                      @if (it.supplier) { <span>Lieferant: <strong>{{ it.supplier }}</strong></span> }
+                      @if (it.license_label) { <span>Deklariert: {{ it.license_label }}</span> }
+                      @if (it.source_domain) { <span>Fundseite: {{ it.source_domain }}</span> }
+                    </div>
+                  </div>
+                </div>
+                <div class="review-action">
+                  @switch (confirmState()[it.node_id]) {
+                    @case ('ok') { <span class="confirm-ok"><mat-icon>check_circle</mat-icon> im Risikospeicher</span> }
+                    @case ('duplicate') { <span class="confirm-ok"><mat-icon>done_all</mat-icon> bereits vorhanden</span> }
+                    @case ('pending') { <mat-progress-spinner mode="indeterminate" diameter="18"></mat-progress-spinner> }
+                    @case ('error') {
+                      <button mat-stroked-button (click)="confirm(it)"><mat-icon>replay</mat-icon> Fehler — erneut</button>
+                    }
+                    @default {
+                      <button mat-stroked-button (click)="confirm(it)"><mat-icon>gavel</mat-icon> Bestätigen</button>
+                    }
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        }
+      }
+    </div>
+  }
+</div>

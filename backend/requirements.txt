@@ -1,0 +1,16 @@
+# --- Kern (frei / OSS, keine nativen Binaries nötig) ---
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9      # Datei-Upload
+httpx>=0.27                  # URL-Download, edu-sharing, externe APIs
+pillow>=10.3                 # EXIF/IPTC + Bildverarbeitung
+imagehash>=4.3               # pHash / dHash (BSD)
+beautifulsoup4>=4.12         # DOM-Bildnachweis (Option 2) / Meta (Option 4)
+lxml>=5.2                    # schneller HTML-Parser für BeautifulSoup
+extruct>=0.17                # schema.org / Microdata / RDFa / OpenGraph (Option 1)
+
+# --- Optional (per try-import; fehlend => der jeweilige Check meldet "nicht verfügbar") ---
+# Diese NICHT im Kern-Install, damit ein fehlendes natives Wheel den Setup nicht kippt.
+# Bei Bedarf separat installieren:
+#   pip install c2pa-python        # Prüfschritt "C2PA / Content Credentials"
+#   pip install pytesseract        # + System-Tesseract  -> Prüfschritt "Wasserzeichen/OCR"

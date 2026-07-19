@@ -1,0 +1,28 @@
+# Lokaler Start (baut das Image aus dem Dockerfile):
+#   docker compose up --build      ->  http://localhost:8000
+# Oder das veröffentlichte Image nutzen: `image:` unten auf
+#   <dockerhub-user>/pic-guardian:latest setzen und `build: .` entfernen.
+
+services:
+  pic-guardian:
+    build: .
+    image: pic-guardian:local
+    container_name: pic-guardian
+    ports:
+      - "8000:8000"
+    environment:
+      # Wikimedia verlangt einen aussagekräftigen User-Agent MIT Kontakt
+      # (sonst IP-Block bei externen Abfragen):
+      BILDCHECK_USER_AGENT: "pic-guardian/1.0 (+https://github.com/janschachtschabel/Pic-Guardian)"
+      # Optional:
+      # BILDCHECK_STRICT_NEWS: "1"        # Presse-/Rundfunkbilder ohne Beleg -> "zu prüfen"
+      # BILDCHECK_EXTERNAL_TIMEOUT: "8"   # Frist (s) pro externem Dienst (Einzelprüfung)
+      # BILDCHECK_WAYBACK: "0"            # Wayback-Fallback abschalten
+      # BILDCHECK_CORS_ORIGINS: "https://meine-domain.example"
+    volumes:
+      # Risikospeicher (risk_hub.json) + Batch-Historie über Neustarts hinweg halten
+      - pic-guardian-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  pic-guardian-data:

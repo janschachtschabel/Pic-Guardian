@@ -1,0 +1,33 @@
+# Build-Kontext schlank halten — nur backend/app, backend/requirements.txt und
+# frontend/ (Quellen) werden im Dockerfile wirklich benötigt.
+
+# Abhängigkeiten / Build-Artefakte (im Image frisch erzeugt)
+**/node_modules
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.ruff_cache
+frontend/dist
+frontend/.angular
+
+# Große Nutzdaten & Batch-Ergebnisse (gehören nicht ins Image)
+data_30k_base.csv
+batch_lauf_*/
+backend/data/
+
+# Laufzeit-/Werkzeug-Kram
+tools/
+docs/
+**/*.log
+backend/tests/
+
+# Repo-/IDE-/Tool-Metadaten
+.git
+.github
+.claude
+.gitignore
+Dockerfile
+.dockerignore
+docker-compose.yml
+README.md

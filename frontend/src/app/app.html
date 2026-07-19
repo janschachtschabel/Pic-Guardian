@@ -1,0 +1,238 @@
+<mat-toolbar class="topbar">
+  <mat-icon>image_search</mat-icon>
+  <span class="title">Bild-Lizenz-Check</span>
+  <span class="spacer"></span>
+  <span class="subtitle">Erkennung problematischer Bildlizenzen · Default-Deny</span>
+</mat-toolbar>
+
+<div class="container">
+
+  <!-- ============ Eingabe ============ -->
+  <mat-card class="card input-card" appearance="outlined">
+    <mat-tab-group [selectedIndex]="activeTab()" (selectedIndexChange)="activeTab.set($event)"
+                   animationDuration="150ms">
+
+      <!-- Tab 1: URL -->
+      <mat-tab label="Bild-URL">
+        <div class="tab-body">
+          <mat-form-field appearance="outline" class="full">
+            <mat-label>URL des Bildes</mat-label>
+            <mat-icon matPrefix>link</mat-icon>
+            <input matInput [(ngModel)]="imageUrl" placeholder="https://…/bild.jpg"
+                   (keyup.enter)="submit()">
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="full">
+            <mat-label>Fundseite (optional, verbessert Seiten-Checks)</mat-label>
+            <mat-icon matPrefix>public</mat-icon>
+            <input matInput [(ngModel)]="sourcePage" placeholder="https://…/artikel">
+          </mat-form-field>
+        </div>
+      </mat-tab>
+
+      <!-- Tab 2: Upload -->
+      <mat-tab label="Datei-Upload">
+        <div class="tab-body">
+          <div class="upload-zone">
+            <input #fileInput type="file" accept="image/*" hidden (change)="onFileSelected($event)">
+            <button mat-stroked-button (click)="fileInput.click()">
+              <mat-icon>upload_file</mat-icon> Bild durchsuchen…
+            </button>
+            <span class="filename">{{ selectedFile?.name || 'Keine Datei ausgewählt' }}</span>
+          </div>
+        </div>
+      </mat-tab>
+
+      <!-- Tab 3: Node-ID -->
+      <mat-tab label="edu-sharing Node-ID">
+        <div class="tab-body">
+          <div class="row">
+            <mat-form-field appearance="outline" class="repo">
+              <mat-label>Repository</mat-label>
+              <mat-select [(ngModel)]="selectedRepo">
+                @for (repo of repos(); track repo.id) {
+                  <mat-option [value]="repo.id">{{ repo.label }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+            <mat-form-field appearance="outline" class="grow">
+              <mat-label>Node-ID (UUID)</mat-label>
+              <mat-icon matPrefix>tag</mat-icon>
+              <input matInput [(ngModel)]="nodeId" placeholder="z. B. abcd1234-…"
+                     (keyup.enter)="submit()">
+            </mat-form-field>
+          </div>
+          <mat-expansion-panel class="auth-panel" hideToggle>
+            <mat-expansion-panel-header>
+              <mat-panel-title><mat-icon>lock</mat-icon>&nbsp;Basic-Auth (nur für geschützte Nodes)</mat-panel-title>
+            </mat-expansion-panel-header>
+            <div class="row">
+              <mat-form-field appearance="outline" class="grow">
+                <mat-label>Benutzer</mat-label>
+                <input matInput [(ngModel)]="esUser" autocomplete="off">
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="grow">
+                <mat-label>Passwort</mat-label>
+                <input matInput type="password" [(ngModel)]="esPassword" autocomplete="off">
+              </mat-form-field>
+            </div>
+          </mat-expansion-panel>
+        </div>
+      </mat-tab>
+
+      <!-- Tab 4: Batch-Prüfung (Sammlung / CSV) -->
+      <mat-tab label="Batch-Prüfung">
+        <app-batch [repos]="repos()"></app-batch>
+      </mat-tab>
+    </mat-tab-group>
+
+    @if (activeTab() !== 3) {
+    <mat-divider></mat-divider>
+
+    <!-- Optionen + Aktion -->
+    <div class="options">
+      <mat-slide-toggle [(ngModel)]="allowExternal">
+        Externe Dienste nutzen
+      </mat-slide-toggle>
+      <p class="hint">
+        <mat-icon>info</mat-icon>
+        In der Einzelprüfung standardmäßig <strong>an</strong>: freie externe
+        Dienste (Wikimedia Commons, Openverse) werden abgefragt, aber nach einer
+        kurzen Frist übersprungen, wenn sie nicht antworten — die Prüfung bricht
+        nie ab. Überträgt einen Hash bzw. das Bild an Dritte.
+      </p>
+    </div>
+
+    <div class="actions">
+      <button mat-flat-button class="check-btn" (click)="submit()" [disabled]="loading()">
+        @if (loading()) {
+          <mat-progress-spinner mode="indeterminate" diameter="20"></mat-progress-spinner>
+          Prüfe…
+        } @else {
+          <ng-container><mat-icon>search</mat-icon> Bild prüfen</ng-container>
+        }
+      </button>
+    </div>
+    }
+  </mat-card>
+
+  <!-- ============ Fehler ============ -->
+  @if (error(); as err) {
+    <mat-card class="card error-card" appearance="outlined" role="alert">
+      <mat-icon aria-hidden="true">error</mat-icon><span>{{ err }}</span>
+    </mat-card>
+  }
+
+  <!-- ============ Ergebnis ============ -->
+  @if (report(); as r) {
+    <div class="result-grid">
+
+      <!-- Bild -->
+      <mat-card class="card image-card" appearance="outlined">
+        <h3 class="section-h"><mat-icon>photo</mat-icon> Geladenes Bild</h3>
+        @if (r.image_data_uri) {
+          <img [src]="r.image_data_uri" alt="Geprüftes Bild" class="preview-img">
+        } @else {
+          <div class="no-preview"><mat-icon>hide_image</mat-icon><span>Keine Vorschau darstellbar</span></div>
+        }
+        <dl class="meta">
+          @if (r.source.mime) { <div><dt>Format</dt><dd>{{ r.source.mime }}</dd></div> }
+          @if (r.source.width) { <div><dt>Größe</dt><dd>{{ r.source.width }}×{{ r.source.height }} px</dd></div> }
+          @if (r.source.size_bytes) { <div><dt>Dateigröße</dt><dd>{{ (r.source.size_bytes / 1024) | number:'1.0-0' }} KB</dd></div> }
+          @if (r.source.node_render_url) {
+            <div><dt>Repository</dt><dd><a [href]="r.source.node_render_url" target="_blank" rel="noopener">im edu-sharing öffnen ↗</a></dd></div>
+          }
+        </dl>
+      </mat-card>
+
+      <!-- Gesamturteil (4-stufige Ergebnis-Skala) -->
+      <mat-card class="card verdict-card cat-{{ categoryClass(r.category) }}" appearance="outlined">
+        <div class="verdict-head">
+          <mat-icon class="verdict-icon">{{ categoryIcon(r.category) }}</mat-icon>
+          <div>
+            <div class="verdict-tag">{{ r.category_label }}</div>
+            <h2 class="verdict-headline">{{ r.headline }}</h2>
+          </div>
+        </div>
+        <p class="cat-meaning">{{ categoryMeaning(r.category) }}</p>
+
+        <!-- Skalen-Legende: aktuelle Kategorie hervorgehoben -->
+        <div class="scale">
+          @for (s of scale; track s.key) {
+            <span class="scale-step cat-{{ categoryClass(s.key) }}"
+                  [class.active]="s.key === r.category">{{ s.label }}</span>
+          }
+        </div>
+
+        <div class="confidence">
+          <span>Konfidenz</span>
+          <mat-progress-bar mode="determinate" [value]="r.confidence * 100"></mat-progress-bar>
+          <span>{{ r.confidence * 100 | number:'1.0-0' }} %</span>
+        </div>
+        <p class="recommendation">{{ r.recommendation }}</p>
+        @if (r.external_used) {
+          <p class="ext-note"><mat-icon>cloud_done</mat-icon> Externe Dienste wurden genutzt.</p>
+        }
+      </mat-card>
+    </div>
+
+    <!-- Prüfschritte -->
+    <mat-card class="card" appearance="outlined">
+      <h3 class="section-h"><mat-icon>checklist</mat-icon> Prüfschritte ({{ r.signals.length }})</h3>
+      <mat-accordion multi>
+        @for (s of r.signals; track s.id) {
+          <mat-expansion-panel class="signal-panel">
+            <mat-expansion-panel-header>
+              <mat-panel-title>
+                <mat-icon class="status-icon st-{{ s.status }}"
+                          [matTooltip]="statusLabel(s.status)">{{ statusIcon(s.status) }}</mat-icon>
+                <span class="signal-label">{{ s.label }}</span>
+              </mat-panel-title>
+              <mat-panel-description>
+                @if (s.status === 'done') {
+                  <span class="verdict-badge v-{{ s.verdict }}">{{ verdictLabel(s.verdict) }}</span>
+                } @else {
+                  <span class="verdict-badge v-neutral">{{ statusLabel(s.status) }}</span>
+                }
+                @if (s.external) { <mat-icon class="ext-icon" matTooltip="externer Dienst">cloud</mat-icon> }
+              </mat-panel-description>
+            </mat-expansion-panel-header>
+            <p class="signal-summary">{{ s.summary }}</p>
+            @if (s.evidence.length) {
+              <ul class="evidence">
+                @for (ev of s.evidence; track ev) { <li>{{ ev }}</li> }
+              </ul>
+            }
+            <div class="signal-foot">
+              <span>Kategorie: {{ s.category }}</span>
+              @if (s.duration_ms !== null) { <span>· {{ s.duration_ms }} ms</span> }
+            </div>
+          </mat-expansion-panel>
+        }
+      </mat-accordion>
+    </mat-card>
+
+    <!-- Extrahierte Felder -->
+    @if (fieldRows().length) {
+      <mat-card class="card" appearance="outlined">
+        <h3 class="section-h"><mat-icon>fact_check</mat-icon> Extrahierte Angaben (Attribution &amp; Re-Evaluierung)</h3>
+        <dl class="fields">
+          @for (row of fieldRows(); track row.label) {
+            <div class="field-row">
+              <dt>{{ row.label }}</dt>
+              <dd>
+                @if (row.link) {
+                  <a [href]="row.value" target="_blank" rel="noopener">{{ row.value }}</a>
+                } @else { {{ row.value }} }
+              </dd>
+            </div>
+          }
+        </dl>
+      </mat-card>
+    }
+  }
+
+  <footer class="foot">
+    Prüfdienst · alle Basis-Checks laufen lokal &amp; frei · externe Dienste nur mit Opt-in.
+    Keine Rechtsberatung — Default-Deny: im Zweifel keine Auslieferung.
+  </footer>
+</div>
